@@ -1,5 +1,6 @@
 import 'package:diet/scroll.dart';
 import 'package:flutter/material.dart';
+import 'package:lottie/lottie.dart';
 
 class Welcomeanimation extends StatefulWidget {
   const Welcomeanimation({super.key});
@@ -25,16 +26,9 @@ class _WelcomeanimationState extends State<Welcomeanimation> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: Container(
-        width: MediaQuery.of(context).size.width,
-        height: MediaQuery.of(context).size.height,
-        decoration: BoxDecoration(
-          image: DecorationImage(
-            image: AssetImage('assets/animation.jpg'),
-            fit: BoxFit.cover, // Full screen cover
-          ),
-        ),
-      ),
+      backgroundColor: Color(0xff444444),
+      body: 
+        Center(child: Lottie.asset('assets/Food animation.json')),
     );
   }
 }
