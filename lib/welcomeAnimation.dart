@@ -10,6 +10,7 @@ class Welcomeanimation extends StatefulWidget {
 }
 
 class _WelcomeanimationState extends State<Welcomeanimation> {
+  bool showButton=false;
   @override
   void initState() {
     super.initState();
@@ -28,7 +29,13 @@ class _WelcomeanimationState extends State<Welcomeanimation> {
     return Scaffold(
       backgroundColor: Color(0xff444444),
       body: 
-        Center(child: Lottie.asset('assets/Food animation.json')),
+        Center(
+          child: Container(
+            height: 350,
+              width: double.infinity,
+              child: Center(child: Lottie.asset('assets/Food animation.json'))),
+        ),
+
     );
   }
 }

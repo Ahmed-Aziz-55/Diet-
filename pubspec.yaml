@@ -62,6 +62,7 @@ flutter:
   assets:
     - assets/animation.jpg
     - assets/apple.png
+    - assets/Loading Dots Blue.json
     - assets/Food animation.json
   #   - images/a_dot_ham.jpeg
 
@@ -80,6 +81,7 @@ flutter:
      - family: DancingScript
        fonts:
          - asset: assets/fonts/DancingScript.ttf
+
   #       - asset: fonts/Schyler-Italic.ttf
   #         style: italic
   #   - family: Trajan Pro
