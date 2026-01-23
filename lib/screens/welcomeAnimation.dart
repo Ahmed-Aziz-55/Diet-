@@ -1,4 +1,4 @@
-import 'package:diet/scroll.dart';
+import 'package:diet/screens/scroll.dart';
 import 'package:flutter/material.dart';
 import 'package:lottie/lottie.dart';
 

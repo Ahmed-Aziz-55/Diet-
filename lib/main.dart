@@ -1,4 +1,4 @@
-import 'package:diet/welcomeAnimation.dart';
+import 'package:diet/screens/welcomeAnimation.dart';
 import 'package:flutter/material.dart';
 
 void main() {
