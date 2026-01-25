@@ -68,7 +68,7 @@ class _ScrollState extends State<Scroll> {
               child: showButton
                   ? InkWell(
                 onTap: () {
-                  Navigator.push(context, MaterialPageRoute(builder: (context)=>GenderPage()));
+                  Navigator.push(context, MaterialPageRoute(builder: (context)=>GenderPage(userId: 'userId')));
                 },
                 child: Container(
                   height: 45,

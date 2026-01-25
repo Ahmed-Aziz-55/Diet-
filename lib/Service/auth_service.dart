@@ -4,6 +4,36 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 class AuthService {
   final FirebaseAuth _auth = FirebaseAuth.instance;
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  // Add to AuthService class
+  Future<User?> loginWithEmailAndPassword(String email, String password) async {
+    try {
+      UserCredential result = await _auth.signInWithEmailAndPassword(
+        email: email,
+        password: password,
+      );
+
+      // Check if profile is complete
+      DocumentSnapshot userDoc = await _firestore
+          .collection('users')
+          .doc(result.user!.uid)
+          .get();
+
+      if (userDoc.exists) {
+        Map<String, dynamic> userData = userDoc.data() as Map<String, dynamic>;
+        bool profileComplete = userData['profileComplete'] ?? false;
+
+        if (!profileComplete) {
+          // Navigate to profile completion
+          // You can handle this in your navigation logic
+        }
+      }
+
+      return result.user;
+    } catch (e) {
+      print("Login Error: $e");
+      throw e; // Re-throw for error handling in UI
+    }
+  }
 
   // Sign Up with Email & Password
   Future<User?> signUpWithEmailAndPassword(

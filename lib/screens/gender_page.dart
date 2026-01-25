@@ -1,34 +1,42 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
-import 'package:shared_preferences/shared_preferences.dart'; // Add this package
+import 'package:cloud_firestore/cloud_firestore.dart';
 
-// Add at the top of your file
+import 'dashboard_screen.dart';
+import 'login_screen.dart';
+
 enum Gender { male, female }
+enum Goal { lose, maintain, gain }
+enum ActivityLevel { sedentary, light, moderate, active, veryActive }
 
 class GenderPage extends StatefulWidget {
-  const GenderPage({super.key});
+  final String userId;
+
+  GenderPage({required this.userId, Key? key}) : super(key: key);
 
   @override
   State<GenderPage> createState() => _GenderPageState();
 }
 
 class _GenderPageState extends State<GenderPage> {
+  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+
   // Controllers
-  TextEditingController _heightController = TextEditingController();
-  TextEditingController _weightController = TextEditingController();
-  TextEditingController _usernameController = TextEditingController();
+  final TextEditingController _heightController = TextEditingController();
+  final TextEditingController _weightController = TextEditingController();
+  final TextEditingController _targetWeightController = TextEditingController();
 
   final PageController _controller = PageController();
 
   // User Data
   Gender? _selectedGender;
   DateTime? _selectedDate;
-  String? _username;
+  Goal? _selectedGoal;
+  ActivityLevel? _selectedActivityLevel;
 
   int currentPage = 0;
-  final int totalPages = 9;
+  final int totalPages = 7; // Updated to include all pages
 
-  // Focus on user selection
   bool _isMaleSelected = false;
   bool _isFemaleSelected = false;
 
@@ -45,119 +53,96 @@ class _GenderPageState extends State<GenderPage> {
     return age;
   }
 
-  // Date Picker
-  Future<void> _selectDate(BuildContext context) async {
-    final DateTime? picked = await showDatePicker(
-      context: context,
-      initialDate: DateTime.now(),
-      firstDate: DateTime(1900),
-      lastDate: DateTime.now(),
-      builder: (context, child) {
-        return Theme(
-          data: ThemeData.light().copyWith(
-            colorScheme: ColorScheme.light(
-              primary: Colors.orange,
-              onPrimary: Colors.white,
-            ),
-          ),
-          child: child!,
-        );
-      },
-    );
+  // Calculate BMR (Basal Metabolic Rate)
+  double _calculateBMR() {
+    double weight = double.tryParse(_weightController.text) ?? 0;
+    double height = double.tryParse(_heightController.text) ?? 0;
+    int age = _calculateAge(_selectedDate ?? DateTime.now());
 
-    if (picked != null && picked != _selectedDate) {
-      setState(() {
-        _selectedDate = picked;
+    if (_selectedGender == Gender.male) {
+      return 88.362 + (13.397 * weight) + (4.799 * height) - (5.677 * age);
+    } else {
+      return 447.593 + (9.247 * weight) + (3.098 * height) - (4.330 * age);
+    }
+  }
+
+  // Calculate TDEE (Total Daily Energy Expenditure)
+  double _calculateTDEE(double bmr) {
+    double activityMultiplier = 1.2;
+
+    switch (_selectedActivityLevel) {
+      case ActivityLevel.sedentary:
+        activityMultiplier = 1.2;
+        break;
+      case ActivityLevel.light:
+        activityMultiplier = 1.375;
+        break;
+      case ActivityLevel.moderate:
+        activityMultiplier = 1.55;
+        break;
+      case ActivityLevel.active:
+        activityMultiplier = 1.725;
+        break;
+      case ActivityLevel.veryActive:
+        activityMultiplier = 1.9;
+        break;
+      default:
+        activityMultiplier = 1.2;
+    }
+
+    return bmr * activityMultiplier;
+  }
+
+  // Calculate Daily Calories based on Goal
+  Map<String, dynamic> _calculateDailyCalories() {
+    double bmr = _calculateBMR();
+    double tdee = _calculateTDEE(bmr);
+
+    double targetCalories = tdee;
+    String description = 'Maintain Weight';
+
+    if (_selectedGoal == Goal.lose) {
+      targetCalories = tdee - 500; // 500 calorie deficit for weight loss
+      description = 'Weight Loss (500 cal deficit)';
+    } else if (_selectedGoal == Goal.gain) {
+      targetCalories = tdee + 500; // 500 calorie surplus for weight gain
+      description = 'Weight Gain (500 cal surplus)';
+    }
+
+    return {
+      'bmr': bmr,
+      'tdee': tdee,
+      'dailyCalories': targetCalories,
+      'goalDescription': description,
+      'protein': (targetCalories * 0.3) / 4, // 30% from protein
+      'carbs': (targetCalories * 0.5) / 4,   // 50% from carbs
+      'fats': (targetCalories * 0.2) / 9,    // 20% from fats
+    };
+  }
+
+  // Save ALL Data to Firestore
+  Future<void> _saveAllDataToFirestore() async {
+    try {
+      Map<String, dynamic> calorieData = _calculateDailyCalories();
+
+      await _firestore.collection('users').doc(widget.userId).update({
+        'profileComplete': true,
+        'gender': _selectedGender == Gender.male ? 'male' : 'female',
+        'height': double.tryParse(_heightController.text),
+        'weight': double.tryParse(_weightController.text),
+        'birthDate': _selectedDate?.toIso8601String(),
+        'age': _calculateAge(_selectedDate ?? DateTime.now()),
+        'goal': _selectedGoal?.toString().split('.').last,
+        'activityLevel': _selectedActivityLevel?.toString().split('.').last,
+        'targetWeight': double.tryParse(_targetWeightController.text),
+        ...calorieData,
+        'lastUpdated': DateTime.now(),
       });
-      // Save date when selected
-      _saveData();
+
+      print('Data saved to Firestore successfully!');
+    } catch (e) {
+      print('Firestore Error: $e');
     }
-  }
-
-  // **SAVE DATA FUNCTION**
-  Future<void> _saveData() async {
-    final prefs = await SharedPreferences.getInstance();
-
-    // Save gender
-    if (_selectedGender != null) {
-      await prefs.setString('gender', _selectedGender.toString());
-    }
-
-    // Save height
-    if (_heightController.text.isNotEmpty) {
-      await prefs.setDouble('height', double.parse(_heightController.text));
-    }
-
-    // Save weight
-    if (_weightController.text.isNotEmpty) {
-      await prefs.setDouble('weight', double.parse(_weightController.text));
-    }
-
-    // Save birth date
-    if (_selectedDate != null) {
-      await prefs.setString('birthDate', _selectedDate!.toIso8601String());
-      await prefs.setInt('age', _calculateAge(_selectedDate!));
-    }
-
-    // Save username
-    if (_usernameController.text.isNotEmpty) {
-      await prefs.setString('username', _usernameController.text);
-    }
-
-    print('Data saved successfully!');
-  }
-
-  // **LOAD DATA FUNCTION**
-  Future<void> _loadData() async {
-    final prefs = await SharedPreferences.getInstance();
-
-    // Load gender
-    String? genderString = prefs.getString('gender');
-    if (genderString != null) {
-      if (genderString.contains('male')) {
-        setState(() {
-          _selectedGender = Gender.male;
-          _isMaleSelected = true;
-        });
-      } else if (genderString.contains('female')) {
-        setState(() {
-          _selectedGender = Gender.female;
-          _isFemaleSelected = true;
-        });
-      }
-    }
-
-    // Load height
-    double? savedHeight = prefs.getDouble('height');
-    if (savedHeight != null) {
-      _heightController.text = savedHeight.toString();
-    }
-
-    // Load weight
-    double? savedWeight = prefs.getDouble('weight');
-    if (savedWeight != null) {
-      _weightController.text = savedWeight.toString();
-    }
-
-    // Load birth date
-    String? savedDate = prefs.getString('birthDate');
-    if (savedDate != null) {
-      setState(() {
-        _selectedDate = DateTime.parse(savedDate);
-      });
-    }
-
-    // Load username
-    String? savedUsername = prefs.getString('username');
-    if (savedUsername != null) {
-      _usernameController.text = savedUsername;
-    }
-  }
-
-  @override
-  void initState() {
-    super.initState();
-    _loadData(); // Load saved data when page starts
   }
 
   @override
@@ -167,14 +152,6 @@ class _GenderPageState extends State<GenderPage> {
       appBar: AppBar(
         title: Text('${currentPage + 1}/$totalPages'),
         centerTitle: false,
-        actions: [
-          // Add a save button in app bar
-          IconButton(
-            icon: Icon(Icons.save),
-            onPressed: _saveData,
-            tooltip: 'Save All Data',
-          ),
-        ],
       ),
       body: PageView(
         controller: _controller,
@@ -184,133 +161,12 @@ class _GenderPageState extends State<GenderPage> {
           });
         },
         children: [
-          // **PAGE 1: GENDER SELECTION**
-          Center(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Text(
-                  'Select Your Gender',
-                  style: TextStyle(
-                    fontSize: 24,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.white,
-                  ),
-                ),
-                SizedBox(height: 40),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    // Female Option
-                    GestureDetector(
-                      onTap: () {
-                        setState(() {
-                          _selectedGender = Gender.female;
-                          _isFemaleSelected = true;
-                          _isMaleSelected = false;
-                        });
-                        _saveData(); // Save immediately on selection
-                      },
-                      child: Container(
-                        height: 140,
-                        width: 140,
-                        decoration: BoxDecoration(
-                          color: _isFemaleSelected
-                              ? Colors.orange.withOpacity(0.3)
-                              : Colors.transparent,
-                          borderRadius: BorderRadius.circular(20),
-                          border: Border.all(
-                            color: _isFemaleSelected
-                                ? Colors.orange
-                                : Colors.grey,
-                            width: 3,
-                          ),
-                        ),
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Container(
-                              height: 100,
-                              width: 100,
-                              child: Image.asset('assets/female.jpg'),
-                            ),
-                            SizedBox(height: 5),
-                            Text(
-                              'Female',
-                              style: TextStyle(
-                                color: Colors.white,
-                                fontSize: 16,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                    SizedBox(width: 30),
-                    // Male Option
-                    GestureDetector(
-                      onTap: () {
-                        setState(() {
-                          _selectedGender = Gender.male;
-                          _isMaleSelected = true;
-                          _isFemaleSelected = false;
-                        });
-                        _saveData(); // Save immediately on selection
-                      },
-                      child: Container(
-                        height: 140,
-                        width: 140,
-                        decoration: BoxDecoration(
-                          color: _isMaleSelected
-                              ? Colors.orange.withOpacity(0.3)
-                              : Colors.transparent,
-                          borderRadius: BorderRadius.circular(20),
-                          border: Border.all(
-                            color: _isMaleSelected
-                                ? Colors.orange
-                                : Colors.grey,
-                            width: 3,
-                          ),
-                        ),
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Container(
-                              height: 100,
-                              width: 100,
-                              child: Image.asset('assets/man.png'),
-                            ),
-                            SizedBox(height: 5),
-                            Text(
-                              'Male',
-                              style: TextStyle(
-                                color: Colors.white,
-                                fontSize: 16,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-                SizedBox(height: 20),
-                if (_selectedGender != null)
-                  Text(
-                    'Selected: ${_selectedGender == Gender.male ? 'Male' : 'Female'}',
-                    style: TextStyle(
-                      color: Colors.orange,
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-              ],
-            ),
-          ),
+          // Page 1: Gender Selection (keep your existing gender page)
+          // Page 2: Height (keep your existing height page)
+          // Page 3: Weight (keep your existing weight page)
+          // Page 4: Birth Date (keep your existing birth date page)
 
-          // **PAGE 2: HEIGHT**
+          // **NEW PAGE 5: GOAL SELECTION**
           Container(
             color: Color(0xff444444),
             child: Center(
@@ -318,197 +174,69 @@ class _GenderPageState extends State<GenderPage> {
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   Container(
-                    height: 200,
-                    width: 200,
-                    child: Image.asset('assets/scale.png'),
-                  ),
-                  SizedBox(height: 20),
-                  Text(
-                    'Height',
-                    style: TextStyle(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 20,
-                      color: Colors.white,
-                    ),
-                  ),
-                  Text(
-                    'Please enter your height in centimeters',
-                    style: TextStyle(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 15,
-                      color: Colors.white,
-                    ),
-                  ),
-                  SizedBox(height: 20),
-                  Padding(
-                    padding: const EdgeInsets.all(20.0),
-                    child: TextFormField(
-                      controller: _heightController,
-                      keyboardType: TextInputType.number,
-                      decoration: InputDecoration(
-                        hintText: 'Enter your height (cm)',
-                        hintStyle: TextStyle(color: Colors.white70),
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(10),
-                          borderSide: BorderSide(color: Colors.orange),
-                        ),
-                        focusedBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(10),
-                          borderSide: BorderSide(color: Colors.orange, width: 2),
-                        ),
-                        suffixIcon: IconButton(
-                          icon: Icon(Icons.save, color: Colors.orange),
-                          onPressed: _saveData,
-                          tooltip: 'Save Height',
-                        ),
-                      ),
-                      style: TextStyle(color: Colors.white),
-                      onChanged: (value) {
-                        // Auto-save when user types (optional)
-                        if (value.isNotEmpty && double.tryParse(value) != null) {
-                          Future.delayed(Duration(seconds: 1), _saveData);
-                        }
-                      },
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-
-          // **PAGE 3: WEIGHT**
-          Container(
-            color: Color(0xff444444),
-            child: Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Container(
-                    height: 200,
-                    width: 200,
-                    child: Image.asset('assets/weight.png'),
-                  ),
-                  SizedBox(height: 20),
-                  Text(
-                    'Weight',
-                    style: TextStyle(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 20,
-                      color: Colors.white,
-                    ),
-                  ),
-                  Text(
-                    'Please enter your weight in kilograms',
-                    style: TextStyle(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 15,
-                      color: Colors.white,
-                    ),
-                  ),
-                  SizedBox(height: 20),
-                  Padding(
-                    padding: const EdgeInsets.all(20.0),
-                    child: TextFormField(
-                      controller: _weightController,
-                      keyboardType: TextInputType.number,
-                      decoration: InputDecoration(
-                        hintText: 'Enter your weight (kg)',
-                        hintStyle: TextStyle(color: Colors.white70),
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(10),
-                          borderSide: BorderSide(color: Colors.orange),
-                        ),
-                        focusedBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(10),
-                          borderSide: BorderSide(color: Colors.orange, width: 2),
-                        ),
-                        suffixIcon: IconButton(
-                          icon: Icon(Icons.save, color: Colors.orange),
-                          onPressed: _saveData,
-                          tooltip: 'Save Weight',
-                        ),
-                      ),
-                      style: TextStyle(color: Colors.white),
-                      onChanged: (value) {
-                        if (value.isNotEmpty && double.tryParse(value) != null) {
-                          Future.delayed(Duration(seconds: 1), _saveData);
-                        }
-                      },
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-
-          // **PAGE 4: AGE/BIRTH DATE**
-          Container(
-            color: Color(0xff444444),
-            child: Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                crossAxisAlignment: CrossAxisAlignment.center,
-                children: [
-                  Container(
-                    height: 200,
-                    width: 200,
-                    child: Image.asset('assets/cake.png'),
-                  ),
-                  SizedBox(height: 20),
-                  Text(
-                    'Your age helps us calculate your daily calorie needs accurately',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 15,
-                      color: Colors.white,
-                    ),
+                    height: 150,
+                    width: 150,
+                    child: Image.asset('assets/goal.png'), // Add goal icon
                   ),
                   SizedBox(height: 30),
-                  ElevatedButton(
-                    onPressed: () => _selectDate(context),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.orange,
-                      padding: EdgeInsets.symmetric(horizontal: 30, vertical: 15),
-                    ),
-                    child: Text(
-                      _selectedDate == null
-                          ? 'Select Birth Date'
-                          : 'Selected: ${DateFormat('dd-MMM-yyyy').format(_selectedDate!)}',
-                      style: TextStyle(
-                        fontSize: 16,
-                        color: Colors.white,
-                      ),
+                  Text(
+                    'Select Your Goal',
+                    style: TextStyle(
+                      fontSize: 28,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white,
                     ),
                   ),
                   SizedBox(height: 20),
-                  if (_selectedDate != null)
-                    Column(
-                      children: [
-                        Text(
-                          'Age: ${_calculateAge(_selectedDate!)} years',
-                          style: TextStyle(
-                            fontSize: 18,
-                            color: Colors.white,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                        SizedBox(height: 10),
-                        ElevatedButton(
-                          onPressed: _saveData,
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: Colors.green,
-                          ),
-                          child: Text('Save Age Data'),
-                        ),
-                      ],
-                    ),
+
+                  // Weight Loss Card
+                  _buildGoalCard(
+                    title: 'Weight Loss',
+                    subtitle: 'Lose 0.5-1 kg per week',
+                    icon: Icons.trending_down,
+                    isSelected: _selectedGoal == Goal.lose,
+                    onTap: () {
+                      setState(() {
+                        _selectedGoal = Goal.lose;
+                      });
+                    },
+                  ),
+
+                  SizedBox(height: 15),
+
+                  // Weight Maintenance Card
+                  _buildGoalCard(
+                    title: 'Maintain Weight',
+                    subtitle: 'Keep your current weight',
+                    icon: Icons.trending_flat,
+                    isSelected: _selectedGoal == Goal.maintain,
+                    onTap: () {
+                      setState(() {
+                        _selectedGoal = Goal.maintain;
+                      });
+                    },
+                  ),
+
+                  SizedBox(height: 15),
+
+                  // Weight Gain Card
+                  _buildGoalCard(
+                    title: 'Weight Gain',
+                    subtitle: 'Gain 0.25-0.5 kg per week',
+                    icon: Icons.trending_up,
+                    isSelected: _selectedGoal == Goal.gain,
+                    onTap: () {
+                      setState(() {
+                        _selectedGoal = Goal.gain;
+                      });
+                    },
+                  ),
                 ],
               ),
             ),
           ),
 
-          // **PAGE 5: USERNAME**
+          // **NEW PAGE 6: ACTIVITY LEVEL**
           Container(
             color: Color(0xff444444),
             child: Center(
@@ -516,34 +244,135 @@ class _GenderPageState extends State<GenderPage> {
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   Container(
-                    height: 200,
-                    width: 200,
-                    child: Image.asset('assets/name.png'),
+                    height: 150,
+                    width: 150,
+                    child: Image.asset('assets/activity.png'), // Add activity icon
                   ),
-                  SizedBox(height: 20),
+                  SizedBox(height: 30),
                   Text(
-                    'Enter Username',
+                    'Activity Level',
                     style: TextStyle(
+                      fontSize: 28,
                       fontWeight: FontWeight.bold,
-                      fontSize: 20,
                       color: Colors.white,
                     ),
                   ),
                   SizedBox(height: 10),
                   Text(
-                    'This will be your display name in the app',
+                    'How active are you?',
                     style: TextStyle(
-                      fontSize: 15,
+                      fontSize: 16,
                       color: Colors.white70,
                     ),
                   ),
+                  SizedBox(height: 30),
+
+                  // Activity Level Options
+                  _buildActivityCard(
+                    title: 'Sedentary',
+                    subtitle: 'Little or no exercise',
+                    isSelected: _selectedActivityLevel == ActivityLevel.sedentary,
+                    onTap: () {
+                      setState(() {
+                        _selectedActivityLevel = ActivityLevel.sedentary;
+                      });
+                    },
+                  ),
+
+                  SizedBox(height: 15),
+
+                  _buildActivityCard(
+                    title: 'Lightly Active',
+                    subtitle: 'Light exercise 1-3 days/week',
+                    isSelected: _selectedActivityLevel == ActivityLevel.light,
+                    onTap: () {
+                      setState(() {
+                        _selectedActivityLevel = ActivityLevel.light;
+                      });
+                    },
+                  ),
+
+                  SizedBox(height: 15),
+
+                  _buildActivityCard(
+                    title: 'Moderately Active',
+                    subtitle: 'Moderate exercise 3-5 days/week',
+                    isSelected: _selectedActivityLevel == ActivityLevel.moderate,
+                    onTap: () {
+                      setState(() {
+                        _selectedActivityLevel = ActivityLevel.moderate;
+                      });
+                    },
+                  ),
+
+                  SizedBox(height: 15),
+
+                  _buildActivityCard(
+                    title: 'Very Active',
+                    subtitle: 'Hard exercise 6-7 days/week',
+                    isSelected: _selectedActivityLevel == ActivityLevel.active,
+                    onTap: () {
+                      setState(() {
+                        _selectedActivityLevel = ActivityLevel.active;
+                      });
+                    },
+                  ),
+
+                  SizedBox(height: 15),
+
+                  _buildActivityCard(
+                    title: 'Extremely Active',
+                    subtitle: 'Very hard exercise & physical job',
+                    isSelected: _selectedActivityLevel == ActivityLevel.veryActive,
+                    onTap: () {
+                      setState(() {
+                        _selectedActivityLevel = ActivityLevel.veryActive;
+                      });
+                    },
+                  ),
+                ],
+              ),
+            ),
+          ),
+
+          // **NEW PAGE 7: TARGET WEIGHT & SUMMARY**
+          Container(
+            color: Color(0xff444444),
+            child: Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Container(
+                    height: 150,
+                    width: 150,
+                    child: Image.asset('assets/target.png'),
+                  ),
                   SizedBox(height: 20),
+                  Text(
+                    'Target Weight',
+                    style: TextStyle(
+                      fontSize: 28,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white,
+                    ),
+                  ),
+                  SizedBox(height: 10),
+                  Text(
+                    'What is your target weight?',
+                    style: TextStyle(
+                      fontSize: 16,
+                      color: Colors.white70,
+                    ),
+                  ),
+                  SizedBox(height: 30),
+
                   Padding(
-                    padding: const EdgeInsets.all(20.0),
+                    padding: const EdgeInsets.symmetric(horizontal: 40),
                     child: TextFormField(
-                      controller: _usernameController,
+                      controller: _targetWeightController,
+                      keyboardType: TextInputType.number,
                       decoration: InputDecoration(
-                        hintText: 'Enter your username',
+                        hintText: 'Enter target weight (kg)',
                         hintStyle: TextStyle(color: Colors.white70),
                         border: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(10),
@@ -553,20 +382,58 @@ class _GenderPageState extends State<GenderPage> {
                           borderRadius: BorderRadius.circular(10),
                           borderSide: BorderSide(color: Colors.orange, width: 2),
                         ),
-                        suffixIcon: IconButton(
-                          icon: Icon(Icons.save, color: Colors.orange),
-                          onPressed: _saveData,
-                          tooltip: 'Save Username',
-                        ),
                       ),
-                      style: TextStyle(color: Colors.white),
-                      onChanged: (value) {
-                        if (value.isNotEmpty) {
-                          Future.delayed(Duration(seconds: 1), _saveData);
-                        }
-                      },
+                      style: TextStyle(color: Colors.white, fontSize: 18),
                     ),
                   ),
+
+                  SizedBox(height: 40),
+
+                  // Summary Card
+                  if (_selectedGoal != null)
+                    Container(
+                      padding: EdgeInsets.all(20),
+                      decoration: BoxDecoration(
+                        color: Colors.black.withOpacity(0.3),
+                        borderRadius: BorderRadius.circular(15),
+                        border: Border.all(color: Colors.orange),
+                      ),
+                      child: Column(
+                        children: [
+                          Text(
+                            'Your Plan Summary',
+                            style: TextStyle(
+                              fontSize: 20,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.white,
+                            ),
+                          ),
+                          SizedBox(height: 15),
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Text('Goal:', style: TextStyle(color: Colors.white70)),
+                              Text(
+                                _selectedGoal == Goal.lose ? 'Weight Loss' :
+                                _selectedGoal == Goal.gain ? 'Weight Gain' : 'Maintain',
+                                style: TextStyle(color: Colors.orange, fontWeight: FontWeight.bold),
+                              ),
+                            ],
+                          ),
+                          SizedBox(height: 10),
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Text('Daily Calories:', style: TextStyle(color: Colors.white70)),
+                              Text(
+                                '${_calculateDailyCalories()['dailyCalories'].round()} cal',
+                                style: TextStyle(color: Colors.green, fontWeight: FontWeight.bold),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
                 ],
               ),
             ),
@@ -574,44 +441,135 @@ class _GenderPageState extends State<GenderPage> {
         ],
       ),
 
-      // **Floating Action Button for Next/Save**
       floatingActionButton: FloatingActionButton(
-        onPressed: () {
+        onPressed: () async {
           if (currentPage < totalPages - 1) {
             _controller.nextPage(
               duration: Duration(milliseconds: 300),
               curve: Curves.easeInOut,
             );
           } else {
-            // On last page, save and navigate to home
-            _saveData().then((_) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text('Profile saved successfully!'),
-                  backgroundColor: Colors.green,
-                ),
-              );
-              // Navigate to home screen
-              // Navigator.pushReplacement(context,
-              //   MaterialPageRoute(builder: (context) => HomeScreen()));
-            });
+            // Save all data and go to dashboard
+            await _saveAllDataToFirestore();
+
+            Navigator.pushReplacement(
+              context,
+              MaterialPageRoute(
+                builder: (context) => DashboardScreen(userId: widget.userId),
+              ),
+            );
           }
         },
         backgroundColor: Colors.orange,
         child: Icon(
-          currentPage < totalPages - 1 ? Icons.arrow_forward : Icons.check,
+          currentPage < totalPages - 1 ? Icons.arrow_forward : Icons.done,
           color: Colors.white,
         ),
       ),
     );
   }
 
-  @override
-  void dispose() {
-    _heightController.dispose();
-    _weightController.dispose();
-    _usernameController.dispose();
-    _controller.dispose();
-    super.dispose();
+  Widget _buildGoalCard({
+    required String title,
+    required String subtitle,
+    required IconData icon,
+    required bool isSelected,
+    required VoidCallback onTap,
+  }) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        width: MediaQuery.of(context).size.width * 0.8,
+        padding: EdgeInsets.all(20),
+        decoration: BoxDecoration(
+          color: isSelected ? Colors.orange.withOpacity(0.2) : Colors.black.withOpacity(0.2),
+          borderRadius: BorderRadius.circular(15),
+          border: Border.all(
+            color: isSelected ? Colors.orange : Colors.grey,
+            width: 2,
+          ),
+        ),
+        child: Row(
+          children: [
+            Icon(icon, color: isSelected ? Colors.orange : Colors.white, size: 30),
+            SizedBox(width: 20),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white,
+                    ),
+                  ),
+                  Text(
+                    subtitle,
+                    style: TextStyle(
+                      fontSize: 14,
+                      color: Colors.white70,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            if (isSelected)
+              Icon(Icons.check_circle, color: Colors.orange),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildActivityCard({
+    required String title,
+    required String subtitle,
+    required bool isSelected,
+    required VoidCallback onTap,
+  }) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        width: MediaQuery.of(context).size.width * 0.8,
+        padding: EdgeInsets.all(15),
+        decoration: BoxDecoration(
+          color: isSelected ? Colors.orange.withOpacity(0.2) : Colors.black.withOpacity(0.2),
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(
+            color: isSelected ? Colors.orange : Colors.grey,
+          ),
+        ),
+        child: Row(
+          children: [
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white,
+                    ),
+                  ),
+                  Text(
+                    subtitle,
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: Colors.white70,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            if (isSelected)
+              Icon(Icons.check, color: Colors.orange),
+          ],
+        ),
+      ),
+    );
   }
 }
