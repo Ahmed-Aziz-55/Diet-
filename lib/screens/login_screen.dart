@@ -1,10 +1,11 @@
+import 'package:diet/features/auth/presentation/auth_provider.dart';
+import 'package:diet/screens/dashboard_screen.dart';
+import 'package:diet/screens/forgot_password_screen.dart';
+import 'package:diet/screens/gender_page.dart';
+import 'package:diet/screens/signup_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:firebase_auth/firebase_auth.dart';
-import 'dashboard_screen.dart';
-import 'forget_password.dart';
-import 'signup_screen.dart';
-
+import 'package:provider/provider.dart';
 
 class LoginScreen extends StatefulWidget {
   @override
@@ -12,119 +13,50 @@ class LoginScreen extends StatefulWidget {
 }
 
 class _LoginScreenState extends State<LoginScreen> {
-  // Form Controllers
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
-
-  // Form Key
   final GlobalKey<FormState> _formKey = GlobalKey<FormState>();
-
-  // State Variables
-  bool _isLoading = false;
   bool _isPasswordVisible = false;
-  String _errorMessage = '';
 
-  // Firebase Auth
-  final FirebaseAuth _auth = FirebaseAuth.instance;
-
-  // Social Media Colors
-  final Color _facebookColor = Color(0xFF3b5998);
-  final Color _googleColor = Color(0xFFDB4437);
-  final Color _appleColor = Colors.black;
-
-  // Check if fields are valid
   bool get _isValid {
     return _emailController.text.isNotEmpty &&
         _emailController.text.contains('@') &&
         _passwordController.text.isNotEmpty;
   }
 
-  // Login Function
   Future<void> _loginWithEmailAndPassword() async {
     if (!_formKey.currentState!.validate()) return;
 
-    setState(() {
-      _isLoading = true;
-      _errorMessage = '';
-    });
+    FocusScope.of(context).unfocus();
 
-    try {
-      // Clear any previous focus
-      FocusScope.of(context).unfocus();
+    final authProvider = Provider.of<AuthProvider>(context, listen: false);
 
-      // Sign in with Firebase
-      UserCredential userCredential = await _auth.signInWithEmailAndPassword(
-        email: _emailController.text.trim(),
-        password: _passwordController.text.trim(),
+    setState(() {}); // For showing loader immediately
+
+    final success = await authProvider.signIn(
+      _emailController.text.trim(),
+      _passwordController.text.trim(),
+    );
+
+    if (!mounted) return;
+
+    if (success && authProvider.currentUser != null) {
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(
+          builder: (context) =>
+             DashboardScreen(userId: 'userId'),
+        ),
       );
-
-      // Success - Navigate to Dashboard
-      if (userCredential.user != null) {
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(
-            builder: (context) => DashboardScreen(userId: userCredential.user!.uid),
-          ),
-        );
-      }
-    } on FirebaseAuthException catch (e) {
-      String errorMessage;
-      switch (e.code) {
-        case 'user-not-found':
-          errorMessage = 'No account found with this email';
-          break;
-        case 'wrong-password':
-          errorMessage = 'Incorrect password';
-          break;
-        case 'invalid-email':
-          errorMessage = 'Invalid email address';
-          break;
-        case 'user-disabled':
-          errorMessage = 'This account has been disabled';
-          break;
-        case 'too-many-requests':
-          errorMessage = 'Too many attempts. Try again later';
-          break;
-        default:
-          errorMessage = 'Login failed. Please try again';
-      }
-
+    } else {
       setState(() {
-        _errorMessage = errorMessage;
-      });
-    } catch (e) {
-      setState(() {
-        _errorMessage = 'An error occurred. Please try again';
-      });
-    } finally {
-      setState(() {
-        _isLoading = false;
+        // Show provider's error message
+        _errorMessage = authProvider.errorMessage ?? 'Login failed';
       });
     }
   }
 
-  // Google Login (Placeholder - You'll need to implement Firebase Google Auth)
-  Future<void> _loginWithGoogle() async {
-    // Implement Google Sign In
-    // You'll need to add firebase_auth and google_sign_in packages
-    // ScaffoldMessenger.of(context).showSnackBar(
-    //   SnackBar(content: Text('Google login coming soon!')),
-    // );
-  }
-
-  // Facebook Login (Placeholder)
-  Future<void> _loginWithFacebook() async {
-    // ScaffoldMessenger.of(context).showSnackBar(
-    //   SnackBar(content: Text('Facebook login coming soon!')),
-    // );
-  }
-
-  // Apple Login (Placeholder)
-  Future<void> _loginWithApple() async {
-    // ScaffoldMessenger.of(context).showSnackBar(
-    //   SnackBar(content: Text('Apple login coming soon!')),
-    // );
-  }
+  String _errorMessage = '';
 
   @override
   void dispose() {
@@ -135,6 +67,7 @@ class _LoginScreenState extends State<LoginScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final isLoading = context.watch<AuthProvider>().isLoading;
     final screenHeight = MediaQuery.of(context).size.height;
 
     return AnnotatedRegion<SystemUiOverlayStyle>(
@@ -151,48 +84,48 @@ class _LoginScreenState extends State<LoginScreen> {
               constraints: BoxConstraints(
                 minHeight: screenHeight - MediaQuery.of(context).padding.top,
               ),
-              child: Column(
+              child: Stack(
                 children: [
-                  // Header Section
-                  _buildHeader(),
-
-                  // Form Section
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 24.0),
-                    child: Form(
-                      key: _formKey,
-                      child: Column(
-                        children: [
-                          // Email Field
-                          _buildEmailField(),
-                          SizedBox(height: 20),
-
-                          // Password Field
-                          _buildPasswordField(),
-                          SizedBox(height: 10),
-
-                          // Forgot Password & Error Message
-                          _buildForgotPasswordAndError(),
-                          SizedBox(height: 30),
-
-                          // Login Button
-                          _buildLoginButton(),
-                          SizedBox(height: 30),
-
-                          // OR Divider
-                          _buildOrDivider(),
-                          SizedBox(height: 30),
-
-                          // Social Login Buttons
-                          _buildSocialLoginButtons(),
-                          SizedBox(height: 40),
-
-                          // Sign Up Link
-                          _buildSignUpLink(),
-                          SizedBox(height: 40),
-                        ],
+                  Positioned.fill(
+                    child: Container(
+                      decoration: const BoxDecoration(
+                        gradient: LinearGradient(
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                          colors: [
+                            Color(0xff1a1a1a),
+                            Color(0xff2d2d2d),
+                          ],
+                        ),
                       ),
                     ),
+                  ),
+                  Column(
+                    children: [
+                      _buildHeader(),
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 24.0),
+                        child: Form(
+                          key: _formKey,
+                          child: Column(
+                            children: [
+                              _buildEmailField(),
+                              SizedBox(height: 20),
+                              _buildPasswordField(),
+                              SizedBox(height: 10),
+                              _buildForgotPasswordAndError(),
+                              SizedBox(height: 30),
+                              _buildLoginButton(isLoading),
+                              SizedBox(height: 30),
+                              _buildOrDivider(),
+                              SizedBox(height: 30),
+                              _buildSignUpLink(),
+                              SizedBox(height: 40),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
                 ],
               ),
@@ -203,52 +136,50 @@ class _LoginScreenState extends State<LoginScreen> {
     );
   }
 
-  // Header with Logo
   Widget _buildHeader() {
     return Container(
       padding: EdgeInsets.only(top: 40, bottom: 30),
       child: Column(
         children: [
-          // Logo
-          Container(
-            width: 120,
-            height: 120,
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                colors: [Colors.orange, Colors.deepOrangeAccent],
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-              ),
-              shape: BoxShape.circle,
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.orange.withOpacity(0.4),
-                  blurRadius: 20,
-                  spreadRadius: 5,
+          Hero(
+            tag: 'logo',
+            child: Container(
+              width: 100,
+              height: 100,
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [Colors.orange, Colors.deepOrangeAccent],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
                 ),
-              ],
-            ),
-            child: Center(
-              child: Icon(
-                Icons.restaurant_menu,
-                size: 50,
-                color: Colors.white,
+                shape: BoxShape.circle,
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.orange.withOpacity(0.4),
+                    blurRadius: 20,
+                    spreadRadius: 5,
+                  ),
+                ],
+              ),
+              child: Center(
+                child: Icon(
+                  Icons.restaurant_menu,
+                  size: 40,
+                  color: Colors.white,
+                ),
               ),
             ),
           ),
           SizedBox(height: 20),
-
-          // App Name
           Text(
             'Welcome Back',
             style: TextStyle(
               fontSize: 32,
-              fontWeight: FontWeight.w700,
+              fontWeight: FontWeight.bold,
               color: Colors.white,
+              letterSpacing: 1,
             ),
           ),
-
-          // Subtitle
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 40.0),
             child: Text(
@@ -266,7 +197,6 @@ class _LoginScreenState extends State<LoginScreen> {
     );
   }
 
-  // Email Field
   Widget _buildEmailField() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -282,9 +212,10 @@ class _LoginScreenState extends State<LoginScreen> {
         SizedBox(height: 8),
         Container(
           decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(15),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withOpacity(0.1),
+                color: Colors.black.withOpacity(0.2),
                 blurRadius: 10,
                 offset: Offset(0, 4),
               ),
@@ -296,10 +227,10 @@ class _LoginScreenState extends State<LoginScreen> {
             style: TextStyle(color: Colors.white, fontSize: 16),
             decoration: InputDecoration(
               hintText: 'you@example.com',
-              hintStyle: TextStyle(color: Colors.white54),
+              hintStyle: TextStyle(color: Colors.white38),
               prefixIcon: Icon(Icons.email_outlined, color: Colors.orange),
               filled: true,
-              fillColor: Color(0xff2d2d2d),
+              fillColor: Color(0xff333333),
               border: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(15),
                 borderSide: BorderSide.none,
@@ -308,20 +239,12 @@ class _LoginScreenState extends State<LoginScreen> {
                 borderRadius: BorderRadius.circular(15),
                 borderSide: BorderSide(color: Colors.orange, width: 2),
               ),
-              contentPadding: EdgeInsets.symmetric(vertical: 18, horizontal: 20),
-              errorStyle: TextStyle(color: Colors.red),
+              contentPadding: EdgeInsets.symmetric(vertical: 20, horizontal: 20),
             ),
             validator: (value) {
-              if (value == null || value.isEmpty) {
-                return 'Please enter your email';
-              }
-              if (!value.contains('@') || !value.contains('.')) {
-                return 'Please enter a valid email';
-              }
+              if (value == null || value.isEmpty) return 'Please enter your email';
+              if (!value.contains('@') || !value.contains('.')) return 'Please enter a valid email';
               return null;
-            },
-            onChanged: (value) {
-              setState(() {});
             },
           ),
         ),
@@ -329,7 +252,6 @@ class _LoginScreenState extends State<LoginScreen> {
     );
   }
 
-  // Password Field
   Widget _buildPasswordField() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -345,9 +267,10 @@ class _LoginScreenState extends State<LoginScreen> {
         SizedBox(height: 8),
         Container(
           decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(15),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withOpacity(0.1),
+                color: Colors.black.withOpacity(0.2),
                 blurRadius: 10,
                 offset: Offset(0, 4),
               ),
@@ -359,12 +282,12 @@ class _LoginScreenState extends State<LoginScreen> {
             style: TextStyle(color: Colors.white, fontSize: 16),
             decoration: InputDecoration(
               hintText: 'Enter your password',
-              hintStyle: TextStyle(color: Colors.white54),
+              hintStyle: TextStyle(color: Colors.white38),
               prefixIcon: Icon(Icons.lock_outline, color: Colors.orange),
               suffixIcon: IconButton(
                 icon: Icon(
                   _isPasswordVisible ? Icons.visibility_off : Icons.visibility,
-                  color: Colors.orange,
+                  color: Colors.orange.withOpacity(0.8),
                 ),
                 onPressed: () {
                   setState(() {
@@ -373,7 +296,7 @@ class _LoginScreenState extends State<LoginScreen> {
                 },
               ),
               filled: true,
-              fillColor: Color(0xff2d2d2d),
+              fillColor: Color(0xff333333),
               border: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(15),
                 borderSide: BorderSide.none,
@@ -382,20 +305,12 @@ class _LoginScreenState extends State<LoginScreen> {
                 borderRadius: BorderRadius.circular(15),
                 borderSide: BorderSide(color: Colors.orange, width: 2),
               ),
-              contentPadding: EdgeInsets.symmetric(vertical: 18, horizontal: 20),
-              errorStyle: TextStyle(color: Colors.red),
+              contentPadding: EdgeInsets.symmetric(vertical: 20, horizontal: 20),
             ),
             validator: (value) {
-              if (value == null || value.isEmpty) {
-                return 'Please enter your password';
-              }
-              if (value.length < 6) {
-                return 'Password must be at least 6 characters';
-              }
+              if (value == null || value.isEmpty) return 'Please enter your password';
+              if (value.length < 6) return 'Password must be at least 6 characters';
               return null;
-            },
-            onChanged: (value) {
-              setState(() {});
             },
           ),
         ),
@@ -403,11 +318,9 @@ class _LoginScreenState extends State<LoginScreen> {
     );
   }
 
-  // Forgot Password & Error Message
   Widget _buildForgotPasswordAndError() {
     return Column(
       children: [
-        // Error Message
         if (_errorMessage.isNotEmpty)
           Container(
             width: double.infinity,
@@ -424,41 +337,26 @@ class _LoginScreenState extends State<LoginScreen> {
                 Expanded(
                   child: Text(
                     _errorMessage,
-                    style: TextStyle(
-                      color: Colors.red,
-                      fontSize: 14,
-                    ),
+                    style: TextStyle(color: Colors.red, fontSize: 14),
                   ),
                 ),
               ],
             ),
           ),
-
         if (_errorMessage.isNotEmpty) SizedBox(height: 10),
-
-        // Forgot Password
         Align(
           alignment: Alignment.centerRight,
           child: TextButton(
             onPressed: () {
               Navigator.push(
                 context,
-                MaterialPageRoute(
-                  builder: (context) => ForgotPasswordScreen(),
-                ),
+                MaterialPageRoute(builder: (context) => ForgotPasswordScreen()),
               );
             },
-            style: TextButton.styleFrom(
-              padding: EdgeInsets.zero,
-              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-            ),
+            style: TextButton.styleFrom(foregroundColor: Colors.orange),
             child: Text(
               'Forgot Password?',
-              style: TextStyle(
-                color: Colors.orange,
-                fontSize: 14,
-                fontWeight: FontWeight.w500,
-              ),
+              style: TextStyle(fontWeight: FontWeight.w600),
             ),
           ),
         ),
@@ -466,180 +364,64 @@ class _LoginScreenState extends State<LoginScreen> {
     );
   }
 
-  // Login Button
-  Widget _buildLoginButton() {
+  Widget _buildLoginButton(bool isLoading) {
     return SizedBox(
       width: double.infinity,
-      height: 56,
+      height: 60,
       child: ElevatedButton(
-        onPressed: _isLoading || !_isValid ? null : _loginWithEmailAndPassword,
+        onPressed: isLoading || !_isValid ? null : _loginWithEmailAndPassword,
         style: ElevatedButton.styleFrom(
           backgroundColor: Colors.orange,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(15),
-          ),
-          elevation: 5,
-          shadowColor: Colors.orange.withOpacity(0.5),
-          padding: EdgeInsets.symmetric(vertical: 16),
+          disabledBackgroundColor: Colors.orange.withOpacity(0.3),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          elevation: isLoading || !_isValid ? 0 : 8,
+          shadowColor: Colors.orange.withOpacity(0.4),
         ),
-        child: _isLoading
+        child: isLoading
             ? SizedBox(
           width: 24,
           height: 24,
-          child: CircularProgressIndicator(
-            strokeWidth: 2,
-            color: Colors.white,
-          ),
+          child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
         )
             : Text(
           'Log In',
           style: TextStyle(
             fontSize: 18,
-            fontWeight: FontWeight.w700,
-            letterSpacing: 0.5,
+            fontWeight: FontWeight.bold,
+            letterSpacing: 1,
+            color: Colors.white.withOpacity(_isValid ? 1 : 0.7),
           ),
         ),
       ),
     );
   }
 
-  // OR Divider
   Widget _buildOrDivider() {
     return Row(
       children: [
-        Expanded(
-          child: Divider(
-            color: Colors.white24,
-            thickness: 1,
-          ),
+        Expanded(child: Divider(color: Colors.white12, thickness: 1, endIndent: 10)),
+        Text(
+          'OR',
+          style: TextStyle(color: Colors.white38, fontSize: 14, fontWeight: FontWeight.w600),
         ),
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16.0),
-          child: Text(
-            'OR',
-            style: TextStyle(
-              color: Colors.white54,
-              fontSize: 14,
-            ),
-          ),
-        ),
-        Expanded(
-          child: Divider(
-            color: Colors.white24,
-            thickness: 1,
-          ),
-        ),
+        Expanded(child: Divider(color: Colors.white12, thickness: 1, indent: 10)),
       ],
     );
   }
 
-  // Social Login Buttons
-  Widget _buildSocialLoginButtons() {
-    return Column(
-      children: [
-        // Google Button
-        _buildSocialButton(
-          icon: Icons.g_translate,
-          label: 'Continue with Google',
-          color: _googleColor,
-          textColor: Colors.white,
-          onPressed: _loginWithGoogle,
-        ),
-        SizedBox(height: 15),
-
-        // Facebook Button
-        _buildSocialButton(
-          icon: Icons.facebook,
-          label: 'Continue with Facebook',
-          color: _facebookColor,
-          textColor: Colors.white,
-          onPressed: _loginWithFacebook,
-        ),
-        SizedBox(height: 15),
-
-        // Apple Button
-        if (Theme.of(context).platform == TargetPlatform.iOS)
-          _buildSocialButton(
-            icon: Icons.apple,
-            label: 'Continue with Apple',
-            color: _appleColor,
-            textColor: Colors.white,
-            onPressed: _loginWithApple,
-          ),
-      ],
-    );
-  }
-
-  // Individual Social Button
-  Widget _buildSocialButton({
-    required IconData icon,
-    required String label,
-    required Color color,
-    required Color textColor,
-    required VoidCallback onPressed,
-  }) {
-    return SizedBox(
-      width: double.infinity,
-      height: 50,
-      child: OutlinedButton(
-        onPressed: onPressed,
-        style: OutlinedButton.styleFrom(
-          backgroundColor: color.withOpacity(0.1),
-          side: BorderSide(color: color.withOpacity(0.3)),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
-          ),
-          padding: EdgeInsets.symmetric(horizontal: 20),
-        ),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(icon, color: color, size: 24),
-            SizedBox(width: 10),
-            Text(
-              label,
-              style: TextStyle(
-                color: textColor,
-                fontSize: 14,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  // Sign Up Link
   Widget _buildSignUpLink() {
     return Row(
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
-        Text(
-          "Don't have an account? ",
-          style: TextStyle(
-            color: Colors.white70,
-            fontSize: 15,
-          ),
-        ),
+        Text("Don't have an account? ", style: TextStyle(color: Colors.white70, fontSize: 15)),
         GestureDetector(
           onTap: () {
             Navigator.pushReplacement(
               context,
-              MaterialPageRoute(
-                builder: (context) => SignUpScreen(),
-              ),
+              MaterialPageRoute(builder: (context) => SignUpScreen()),
             );
           },
-          child: Text(
-            'Sign Up',
-            style: TextStyle(
-              color: Colors.orange,
-              fontSize: 15,
-              fontWeight: FontWeight.w700,
-              decoration: TextDecoration.underline,
-            ),
-          ),
+          child: Text('Sign Up', style: TextStyle(color: Colors.orange, fontSize: 15, fontWeight: FontWeight.bold)),
         ),
       ],
     );

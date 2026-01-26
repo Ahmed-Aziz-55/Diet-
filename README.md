@@ -1,16 +1,66 @@
-# diet
+# Diet & Nutrition App
 
-A new Flutter project.
+A production-ready Flutter application for tracking calories, macronutrients, and following diet plans. Built with **Clean Architecture**, **Provider**, and **Firebase**.
 
-## Getting Started
+## 🚀 Corrected & Implemented Features
 
-This project is a starting point for a Flutter application.
+### 1. Architecture (Clean & Scalable)
+- **Features Split**: `auth`, `diet`, `home`, `tracker`.
+- **Layers**:
+    - **Domain**: Entities & Repository Interfaces (pure Dart).
+    - **Data**: Models, Repository Implementations (Firebase logic).
+    - **Presentation**: Providers (ViewModels) & Screens.
+- **State Management**: `MultiProvider` at the root (`main.dart`) injecting all dependencies.
 
-A few resources to get you started if this is your first Flutter project:
+### 2. Diet Plans Feature (`features/diet`)
+- **Entities**: `DietPlan`, `Meal`.
+- **Repository**: Fetches plans from Firestore `diet_plans` collection.
+- **UI**: `DietPlansScreen` displays available plans with a premium card layout.
 
-- [Lab: Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
-- [Cookbook: Useful Flutter samples](https://docs.flutter.dev/cookbook)
+### 3. Daily Calorie Tracker (`features/tracker`)
+- **Entities**: `DailyLog`.
+- **Repository**: Manages `users/{uid}/daily_logs/{date}`.
+    - Uses **Firebase Transactions** to atomicially update total calories and macros when adding meals.
+- **UI**:
+    - `MealLoggerScreen`: Allows users to add meals (Food Name, Calories, Macros, Type).
+    - `Dashboard`: Integated real-time "Calories Left" and Macro progress.
 
-For help getting started with Flutter development, view the
-[online documentation](https://docs.flutter.dev/), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
+### 4. Integration
+- **Dashboard**:
+    - Shows "Calories Left" calculated from `Target - Consumed`.
+    - Shows Macro progress bars (Protein, Carbs, Fats).
+    - Quick Actions navigate to `MealLoggerScreen` and `DietPlansScreen`.
+- **Navigation**: Full flow: Splash (Auth Check) -> Onboarding -> Login/Signup -> Gender Setup -> Dashboard.
+
+## 🛠 Setup & Installation
+
+1.  **Firebase**:
+    - Add `google-services.json` to `android/app`.
+    - Enable Authentication (Email/Password).
+    - Enable Firestore Database.
+2.  **Dependencies**:
+    ```bash
+    flutter pub get
+    ```
+3.  **Run**:
+    ```bash
+    flutter run
+    ```
+
+## 🔒 Security
+- **Firestore Rules**: Strict access control. Users can only read/write their own data (`users/{userId}`).
+- **Data Integrity**: Transactions ensure daily log totals match individual meal sums.
+
+## 🏗 Architecture Overview
+
+```
+lib/
+├── core/               # Shared logic (Failures, UseCases)
+├── features/
+│   ├── auth/           # Authentication (Login, Signup)
+│   ├── diet/           # Diet Plans & Plan viewing
+│   ├── home/           # Dashboard & User Profile
+│   └── tracker/        # Daily Calorie Logging
+├── screens/            # Legacy screens integrated into features
+└── main.dart           # App Entry & Dependency Injection
+```

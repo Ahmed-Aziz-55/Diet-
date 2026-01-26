@@ -12,7 +12,6 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
   final GlobalKey<FormState> _formKey = GlobalKey<FormState>();
 
   bool _isLoading = false;
-  bool _emailSent = false;
   String _errorMessage = '';
   String _successMessage = '';
 
@@ -31,7 +30,6 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
       );
 
       setState(() {
-        _emailSent = true;
         _successMessage = 'Password reset email sent! Check your inbox.';
       });
     } on FirebaseAuthException catch (e) {
@@ -147,7 +145,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                         Container(
                           padding: EdgeInsets.all(12),
                           decoration: BoxDecoration(
-                            color: Colors.red.withOpacity(0.1),
+                            color: Colors.red.withValues(alpha: 0.1),
                             borderRadius: BorderRadius.circular(8),
                           ),
                           child: Row(
@@ -169,7 +167,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                         Container(
                           padding: EdgeInsets.all(12),
                           decoration: BoxDecoration(
-                            color: Colors.green.withOpacity(0.1),
+                            color: Colors.green.withValues(alpha: 0.1),
                             borderRadius: BorderRadius.circular(8),
                           ),
                           child: Row(

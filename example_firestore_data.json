@@ -1,0 +1,48 @@
+{
+  "diet_plans": {
+    "plan_001": {
+      "name": "Weight Loss Starter",
+      "description": "A balanced 1500 cal plan for steady weight loss.",
+      "totalCalories": 1500,
+      "imageUrl": "https://example.com/images/weightloss.jpg",
+      "meals": [
+        {
+          "type": "breakfast",
+          "name": "Oatmeal with Blueberries",
+          "calories": 350,
+          "protein": 12,
+          "carbs": 60,
+          "fats": 6,
+          "description": "High-fiber oats with fresh blueberries"
+        },
+        {
+          "type": "lunch",
+          "name": "Grilled Chicken Salad",
+          "calories": 450,
+          "protein": 40,
+          "carbs": 15,
+          "fats": 20,
+          "description": "High-fiber oats with fresh blueberries"
+        },
+        {
+          "type": "dinner",
+          "name": "Salmon with Quinoa",
+          "calories": 500,
+          "protein": 35,
+          "carbs": 45,
+          "fats": 22,
+          "description": "High-fiber oats with fresh blueberries"
+        },
+        {
+          "type": "snack",
+          "name": "Greek Yogurt",
+          "calories": 200,
+          "protein": 15,
+          "carbs": 10,
+          "fats": 0,
+          "description": "High-fiber oats with fresh blueberries"
+        }
+      ]
+    }
+  }
+}

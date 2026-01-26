@@ -1,4 +1,4 @@
-import 'package:diet/screens/scroll.dart';
+import 'package:diet/screens/onboarding_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:lottie/lottie.dart';
 
@@ -10,7 +10,7 @@ class Welcomeanimation extends StatefulWidget {
 }
 
 class _WelcomeanimationState extends State<Welcomeanimation> {
-  bool showButton=false;
+  bool showButton = false;
   @override
   void initState() {
     super.initState();
@@ -19,7 +19,7 @@ class _WelcomeanimationState extends State<Welcomeanimation> {
     Future.delayed(Duration(seconds: 2), () {
       Navigator.pushReplacement(
         context,
-        MaterialPageRoute(builder: (context) => Scroll()),
+        MaterialPageRoute(builder: (context) => OnboardingScreen()),
       );
     });
   }
@@ -28,14 +28,13 @@ class _WelcomeanimationState extends State<Welcomeanimation> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Color(0xff444444),
-      body: 
-        Center(
-          child: Container(
-            height: 350,
-              width: double.infinity,
-              child: Center(child: Lottie.asset('assets/Food animation.json'))),
+      body: Center(
+        child: Container(
+          height: 350,
+          width: double.infinity,
+          child: Center(child: Lottie.asset('assets/Food animation.json')),
         ),
-
+      ),
     );
   }
 }

@@ -1,206 +1,199 @@
+import 'package:diet/features/auth/presentation/auth_provider.dart';
+import 'package:diet/features/home/presentation/dashboard_provider.dart';
+import 'package:diet/features/diet/presentation/screens/diet_plans_screen.dart';
+import 'package:diet/features/tracker/presentation/providers/tracker_provider.dart';
+import 'package:diet/features/tracker/presentation/screens/meal_logger_screen.dart';
+import 'package:diet/screens/login_screen.dart';
 import 'package:flutter/material.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
+import 'package:provider/provider.dart';
 
 class DashboardScreen extends StatefulWidget {
   final String userId;
 
-  DashboardScreen({required this.userId, Key? key}) : super(key: key);
+  const DashboardScreen({required this.userId, super.key});
 
   @override
   _DashboardScreenState createState() => _DashboardScreenState();
 }
 
 class _DashboardScreenState extends State<DashboardScreen> {
-  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
-  Map<String, dynamic>? _userData;
-  bool _isLoading = true;
-
   @override
   void initState() {
     super.initState();
-    _loadUserData();
-  }
-
-  Future<void> _loadUserData() async {
-    try {
-      DocumentSnapshot doc = await _firestore
-          .collection('users')
-          .doc(widget.userId)
-          .get();
-
-      if (doc.exists) {
-        setState(() {
-          _userData = doc.data() as Map<String, dynamic>;
-          _isLoading = false;
-        });
-      }
-    } catch (e) {
-      print('Error loading user data: $e');
-      setState(() {
-        _isLoading = false;
-      });
-    }
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      Provider.of<DashboardProvider>(context, listen: false).loadUserData(widget.userId);
+      Provider.of<TrackerProvider>(context, listen: false).loadDailyLog(widget.userId);
+    });
   }
 
   @override
   Widget build(BuildContext context) {
-    if (_isLoading) {
-      return Scaffold(
-        backgroundColor: Color(0xff1a1a1a),
-        body: Center(
-          child: CircularProgressIndicator(color: Colors.orange),
-        ),
-      );
-    }
+    return Consumer<DashboardProvider>(
+      builder: (context, provider, child) {
+        if (provider.isLoading) {
+          return Scaffold(
+            backgroundColor: Color(0xff1a1a1a),
+            body: Center(
+              child: CircularProgressIndicator(color: Colors.orange),
+            ),
+          );
+        }
 
-    return Scaffold(
-      backgroundColor: Color(0xff1a1a1a),
-      appBar: AppBar(
-        title: Text(
-          'Calorie Tracker',
-          style: TextStyle(
-            fontWeight: FontWeight.bold,
-            color: Colors.white,
-          ),
-        ),
-        backgroundColor: Color(0xff444444),
-        actions: [
-          IconButton(
-            icon: Icon(Icons.settings),
-            onPressed: () {
-              // Navigate to settings
-            },
-          ),
-        ],
-      ),
-      body: SingleChildScrollView(
-        padding: EdgeInsets.all(20),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Welcome Section
-            Text(
-              'Welcome, ${_userData?['username'] ?? 'User'}!',
+        final userData = provider.userData;
+        
+        return Scaffold(
+          backgroundColor: Color(0xff1a1a1a),
+          appBar: AppBar(
+            title: Text(
+              'Calorigram',
               style: TextStyle(
-                fontSize: 24,
                 fontWeight: FontWeight.bold,
                 color: Colors.white,
               ),
             ),
-            SizedBox(height: 5),
-            Text(
-              'Track your daily nutrition',
-              style: TextStyle(
-                fontSize: 16,
-                color: Colors.white70,
-              ),
-            ),
-            SizedBox(height: 30),
-
-            // Daily Calories Card
-            _buildCalorieCard(),
-            SizedBox(height: 30),
-
-            // Macronutrients Section
-            Text(
-              'Daily Macronutrients',
-              style: TextStyle(
-                fontSize: 20,
-                fontWeight: FontWeight.bold,
-                color: Colors.white,
-              ),
-            ),
-            SizedBox(height: 15),
-            _buildMacroCard(),
-            SizedBox(height: 30),
-
-            // Progress Section
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Expanded(
-                  child: _buildProgressCard(
-                    title: 'Current Weight',
-                    value: '${_userData?['weight']?.round() ?? 0} kg',
-                    icon: Icons.monitor_weight,
-                    color: Colors.blue,
-                  ),
-                ),
-                SizedBox(width: 15),
-                Expanded(
-                  child: _buildProgressCard(
-                    title: 'Target Weight',
-                    value: '${_userData?['targetWeight']?.round() ?? 0} kg',
-                    icon: Icons.flag,
-                    color: Colors.green,
-                  ),
-                ),
-              ],
-            ),
-            SizedBox(height: 20),
-
-            // Quick Actions
-            Text(
-              'Quick Actions',
-              style: TextStyle(
-                fontSize: 20,
-                fontWeight: FontWeight.bold,
-                color: Colors.white,
-              ),
-            ),
-            SizedBox(height: 15),
-            Row(
-              children: [
-                Expanded(
-                  child: _buildActionButton(
-                    icon: Icons.add,
-                    label: 'Add Meal',
-                    onTap: () {
-                      // Navigate to add meal screen
-                    },
-                  ),
-                ),
-                SizedBox(width: 15),
-                Expanded(
-                  child: _buildActionButton(
-                    icon: Icons.track_changes,
-                    label: 'Log Weight',
-                    onTap: () {
-                      // Navigate to weight log screen
-                    },
-                  ),
-                ),
-              ],
-            ),
-          ],
-        ),
-      ),
-      bottomNavigationBar: BottomNavigationBar(
-        backgroundColor: Color(0xff444444),
-        selectedItemColor: Colors.orange,
-        unselectedItemColor: Colors.white70,
-        items: [
-          BottomNavigationBarItem(
-            icon: Icon(Icons.dashboard),
-            label: 'Dashboard',
+            backgroundColor: Color(0xff1f1f1f),
+            elevation: 0,
           ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.restaurant),
-            label: 'Food Log',
+          body: SingleChildScrollView(
+            padding: EdgeInsets.all(20),
+            child: Consumer<TrackerProvider>(
+              builder: (context, trackerProvider, child) {
+                final dailyLog = trackerProvider.todayLog;
+                
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Welcome Section
+                    Text(
+                      'Welcome, ${userData?['username'] ?? 'User'}!',
+                      style: TextStyle(
+                        fontSize: 24,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.white,
+                      ),
+                    ),
+                    SizedBox(height: 5),
+                    Text(
+                      'Track your daily nutrition',
+                      style: TextStyle(
+                        fontSize: 16,
+                        color: Colors.white70,
+                      ),
+                    ),
+                    SizedBox(height: 30),
+
+                    // Daily Calories Card (Using Tracker Data)
+                    _buildCalorieCard(userData, dailyLog),
+                    SizedBox(height: 30),
+
+                    // Macronutrients Section (Using Tracker Data)
+                    Text(
+                      'Daily Macronutrients',
+                      style: TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.white,
+                      ),
+                    ),
+                    SizedBox(height: 15),
+                    _buildMacroCard(userData, dailyLog),
+                    SizedBox(height: 30),
+
+                    // Progress Section (Using User Data)
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Expanded(
+                          child: _buildProgressCard(
+                            title: 'Current Weight',
+                            value: '${userData?['weight']?.round() ?? 0} kg',
+                            icon: Icons.monitor_weight,
+                            color: Colors.blue,
+                          ),
+                        ),
+                        SizedBox(width: 15),
+                        Expanded(
+                          child: _buildProgressCard(
+                            title: 'Target Weight',
+                            value: '${userData?['targetWeight']?.round() ?? 0} kg',
+                            icon: Icons.flag,
+                            color: Colors.green,
+                          ),
+                        ),
+                      ],
+                    ),
+                    SizedBox(height: 30),
+
+                     // Quick Actions
+                    Text(
+                      'Quick Actions',
+                      style: TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.white,
+                      ),
+                    ),
+                    SizedBox(height: 15),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: _buildActionButton(
+                            icon: Icons.add,
+                            label: 'Add Meal',
+                            onTap: () {
+                              Navigator.push(context, MaterialPageRoute(builder: (_) => MealLoggerScreen()));
+                            },
+                          ),
+                        ),
+                        SizedBox(width: 15),
+                        Expanded(
+                          child: _buildActionButton(
+                            icon: Icons.restaurant_menu,
+                            label: 'Diet Plans',
+                            onTap: () {
+                              Navigator.push(context, MaterialPageRoute(builder: (_) => DietPlansScreen()));
+                            },
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                );
+              }
+            ),
           ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.person),
-            label: 'Profile',
+          bottomNavigationBar: BottomNavigationBar(
+            backgroundColor: Color(0xff1f1f1f),
+            selectedItemColor: Colors.orange,
+            unselectedItemColor: Colors.white70,
+            type: BottomNavigationBarType.fixed,
+            items: [
+              BottomNavigationBarItem(
+                icon: Icon(Icons.dashboard),
+                label: 'Dashboard',
+              ),
+              BottomNavigationBarItem(
+                icon: Icon(Icons.restaurant),
+                label: 'Food Log',
+              ),
+              BottomNavigationBarItem(
+                icon: Icon(Icons.person),
+                label: 'Profile',
+              ),
+            ],
           ),
-        ],
-      ),
+        );
+      }
     );
   }
 
-  Widget _buildCalorieCard() {
-    double dailyCalories = _userData?['dailyCalories']?.toDouble() ?? 0;
-    String goal = _userData?['goal'] ?? 'maintain';
+  Widget _buildCalorieCard(Map<String, dynamic>? userData, dynamic dailyLog) {
+    double targetCalories = userData?['dailyCalories']?.toDouble() ?? 2000;
+    String goal = userData?['goal'] ?? 'maintain';
+    
+    int consumedCalories = dailyLog?.totalCalories ?? 0;
+    double progress = targetCalories > 0 ? (consumedCalories / targetCalories) : 0.0;
+    if (progress > 1.0) progress = 1.0;
 
     return Container(
       padding: EdgeInsets.all(25),
@@ -216,7 +209,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
         borderRadius: BorderRadius.circular(20),
         boxShadow: [
           BoxShadow(
-            color: Colors.orange.withOpacity(0.3),
+            color: Colors.orange.withValues(alpha: 0.3),
             blurRadius: 20,
             spreadRadius: 2,
           ),
@@ -231,14 +224,14 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    'Daily Calories',
+                    'Calories Left',
                     style: TextStyle(
                       fontSize: 16,
-                      color: Colors.white.withOpacity(0.9),
+                      color: Colors.white.withValues(alpha: 0.9),
                     ),
                   ),
                   Text(
-                    '${dailyCalories.round()}',
+                    '${(targetCalories - consumedCalories).round()}',
                     style: TextStyle(
                       fontSize: 42,
                       fontWeight: FontWeight.bold,
@@ -250,7 +243,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
               Container(
                 padding: EdgeInsets.all(10),
                 decoration: BoxDecoration(
-                  color: Colors.white.withOpacity(0.2),
+                  color: Colors.white.withValues(alpha: 0.2),
                   borderRadius: BorderRadius.circular(15),
                 ),
                 child: Icon(
@@ -264,8 +257,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
           ),
           SizedBox(height: 20),
           LinearProgressIndicator(
-            value: 0.4, // You can calculate this from consumed calories
-            backgroundColor: Colors.white.withOpacity(0.3),
+            value: progress, 
+            backgroundColor: Colors.white.withValues(alpha: 0.3),
             color: Colors.white,
             minHeight: 10,
             borderRadius: BorderRadius.circular(5),
@@ -275,13 +268,13 @@ class _DashboardScreenState extends State<DashboardScreen> {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Text(
-                '0 cal',
+                'Consumed: $consumedCalories',
                 style: TextStyle(
-                  color: Colors.white.withOpacity(0.8),
+                  color: Colors.white.withValues(alpha: 0.8),
                 ),
               ),
               Text(
-                '${dailyCalories.round()} cal',
+                'Target: ${targetCalories.round()}',
                 style: TextStyle(
                   fontWeight: FontWeight.bold,
                   color: Colors.white,
@@ -294,10 +287,14 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
-  Widget _buildMacroCard() {
-    double protein = _userData?['protein']?.toDouble() ?? 0;
-    double carbs = _userData?['carbs']?.toDouble() ?? 0;
-    double fats = _userData?['fats']?.toDouble() ?? 0;
+  Widget _buildMacroCard(Map<String, dynamic>? userData, dynamic dailyLog) {
+    double targetProtein = userData?['protein']?.toDouble() ?? 100;
+    double targetCarbs = userData?['carbs']?.toDouble() ?? 250;
+    double targetFats = userData?['fats']?.toDouble() ?? 70;
+    
+    int consumedProtein = dailyLog?.totalProtein ?? 0;
+    int consumedCarbs = dailyLog?.totalCarbs ?? 0;
+    int consumedFats = dailyLog?.totalFats ?? 0;
 
     return Container(
       padding: EdgeInsets.all(20),
@@ -309,22 +306,22 @@ class _DashboardScreenState extends State<DashboardScreen> {
         children: [
           _buildMacroRow(
             label: 'Protein',
-            value: '${protein.round()}g',
-            progress: 0.3,
+            value: '$consumedProtein / ${targetProtein.round()}g',
+            progress: targetProtein > 0 ? (consumedProtein / targetProtein).clamp(0.0, 1.0) : 0,
             color: Colors.blue,
           ),
           SizedBox(height: 15),
           _buildMacroRow(
             label: 'Carbs',
-            value: '${carbs.round()}g',
-            progress: 0.5,
+            value: '$consumedCarbs / ${targetCarbs.round()}g',
+            progress: targetCarbs > 0 ? (consumedCarbs / targetCarbs).clamp(0.0, 1.0) : 0,
             color: Colors.green,
           ),
           SizedBox(height: 15),
           _buildMacroRow(
             label: 'Fats',
-            value: '${fats.round()}g',
-            progress: 0.2,
+            value: '$consumedFats / ${targetFats.round()}g',
+            progress: targetFats > 0 ? (consumedFats / targetFats).clamp(0.0, 1.0) : 0,
             color: Colors.orange,
           ),
         ],
@@ -365,7 +362,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
         SizedBox(height: 8),
         LinearProgressIndicator(
           value: progress,
-          backgroundColor: Colors.white.withOpacity(0.1),
+          backgroundColor: Colors.white.withValues(alpha: 0.1),
           color: color,
           minHeight: 8,
           borderRadius: BorderRadius.circular(4),
@@ -394,7 +391,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
               Container(
                 padding: EdgeInsets.all(8),
                 decoration: BoxDecoration(
-                  color: color.withOpacity(0.2),
+                  color: color.withValues(alpha: 0.2),
                   borderRadius: BorderRadius.circular(10),
                 ),
                 child: Icon(icon, color: color, size: 24),
